@@ -11,8 +11,8 @@
 
 namespace yolo
 {
-    float conf_thresh = 0.8;
-    float mask_thresh = 0.6;
+    float conf_thresh = 0.3;
+    float mask_thresh = 0.5;
     float iou_thresh = 0.5;
 
     int seg_ch = 32;
@@ -22,10 +22,6 @@ namespace yolo
     std::vector<std::string> class_names =
         {
             "outside", "field", "line", "ball", "player"};
-
-    // std::vector<std::string> class_names =
-    //     {
-    //         "bean", "corn", "impurity", "rice", "ricebrown", "ricemilled", "wheat", "xian"};
 
     YoloProcessor::YoloProcessor()
     {
@@ -63,6 +59,8 @@ namespace yolo
         std::vector<cv::Rect> boxes;
         std::vector<std::vector<float>> masks;
 
+        std::map<int, int> class_count;
+
         int data_width = class_names.size() + 4 + 32;
         int rows = output0.rows;
         float *pdata = (float *)output0.data;
@@ -82,11 +80,11 @@ namespace yolo
                 float h = pdata[3] / img_info.trans[1];
                 int left = std::max(int((pdata[0] - img_info.trans[2]) / img_info.trans[0] - 0.5 * w + 0.5), 0);
                 int top = std::max(int((pdata[1] - img_info.trans[3]) / img_info.trans[1] - 0.5 * h + 0.5), 0);
-                // float out_left = std::max((pdata[0] - 0.5 * w + 0.5), 0);
-                // float out_top = std::max((pdata[1] - 0.5 * h + 0.5), 0);
                 class_ids.push_back(class_id.x);
                 accus.push_back(max_conf);
                 boxes.push_back(cv::Rect(left, top, int(w + 0.5), int(h + 0.5)));
+
+                class_count[class_id.x]++;
             }
 
             pdata += data_width;
@@ -95,11 +93,13 @@ namespace yolo
         std::vector<int> nms_result;
         cv::dnn::NMSBoxes(boxes, accus, conf_thresh, iou_thresh, nms_result);
 
-        std::cout << "NMS result size" << nms_result.size() << std::endl;
+        // int target_class = 4; 
 
-        for (int i = 0; i < static_cast<int>(nms_result.size()); ++i)
+        for (int i = 0; i < nms_result.size(); ++i)
         {
             int idx = nms_result[i];
+            // if (class_ids[idx] != target_class) // 원하는 클래스만 선택
+            //     continue;
             boxes[idx] = boxes[idx] & cv::Rect(0, 0, img_info.raw_size.width, img_info.raw_size.height);
             Obj result = {class_ids[idx], accus[idx], boxes[idx]};
             get_mask(cv::Mat(masks[idx]).t(), output1, img_info, boxes[idx], result.mask);
@@ -107,16 +107,17 @@ namespace yolo
                 seg_result.push_back(result);
         }
 
-        std::cout << "Seg result size" << seg_result.size() << std::endl;
-
         cv::Mat output_image = raw_image.clone();
         if (seg_result.size() > 0)
         {
             draw_result(output_image, seg_result, color);
         }
-        else
-        {
-        }
+
+        // std::cout << "Class-wise Object Count:" << std::endl;
+        // for (const auto &entry : class_count)
+        // {
+        //     std::cout << "Class ID " << entry.first << ": " << entry.second << " objects" << std::endl;
+        // }
     }
 
     void YoloProcessor::get_mask(const cv::Mat &mask_info, const cv::Mat &mask_data, const ImageInfo &para, cv::Rect bound, cv::Mat &mask_out)
