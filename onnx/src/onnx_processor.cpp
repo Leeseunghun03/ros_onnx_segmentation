@@ -185,52 +185,58 @@ void OnnxProcessor::ProcessImage(const sensor_msgs::msg::Image::SharedPtr msg)
         image_resized = image_resized(ROI);
     }
 
-    // Convert to RGB
-    cv::Mat rgb_image;
-    cv::cvtColor(image_resized, rgb_image, cv::COLOR_BGR2RGB);
+    std::vector<int64_t> input_shape = {1, 3, 640, 640};
+    cv::Mat blob = cv::dnn::blobFromImage(image_resized, 1 / 255.0, cv::Size(640, 640), cv::Scalar(0, 0, 0), true, false);
+    Ort::Value input_tensor = Ort::Value::CreateTensor<float>(
+        Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault),
+        (float *)blob.data, 3 * 640 * 640, input_shape.data(), input_shape.size());
 
-    // Set the image to 32-bit floating point values for tensorization.
-    cv::Mat image_32_bit;
-    rgb_image.convertTo(image_32_bit, CV_32F);
+    // // Convert to RGB
+    // cv::Mat rgb_image;
+    // cv::cvtColor(image_resized, rgb_image, cv::COLOR_BGR2RGB);
 
-    if (_normalize)
-    {
-        cv::normalize(image_32_bit, image_32_bit, 0.0f, 1.0f, cv::NORM_MINMAX);
-    }
+    // // Set the image to 32-bit floating point values for tensorization.
+    // cv::Mat image_32_bit;
+    // rgb_image.convertTo(image_32_bit, CV_32F);
 
-    cv::Mat channels[3];
-    cv::split(image_32_bit, channels);
+    // if (_normalize)
+    // {
+    //     cv::normalize(image_32_bit, image_32_bit, 0.0f, 1.0f, cv::NORM_MINMAX);
+    // }
 
-    size_t input_tensor_size = _tensorHeight * _tensorWidth * 3;
+    // cv::Mat channels[3];
+    // cv::split(image_32_bit, channels);
 
-    std::vector<float> input_tensor_values(input_tensor_size);
+    // size_t input_tensor_size = _tensorHeight * _tensorWidth * 3;
 
-    memmove(&input_tensor_values[0], (float *)channels[0].data, _tensorWidth * _tensorHeight * sizeof(float));
-    memmove(&input_tensor_values[_tensorWidth * _tensorHeight], (float *)channels[1].data, _tensorWidth * _tensorHeight * sizeof(float));
-    memmove(&input_tensor_values[2 * _tensorWidth * _tensorHeight], (float *)channels[2].data, _tensorWidth * _tensorHeight * sizeof(float));
+    // std::vector<float> input_tensor_values(input_tensor_size);
 
-    auto memory_info = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
-    Ort::TypeInfo type_info = _session->GetInputTypeInfo(0);
-    auto tensor_info = type_info.GetTensorTypeAndShapeInfo();
-    std::vector<int64_t> input_node_dims = {1, 3, 640, 640};
-    Ort::Value input_tensor = Ort::Value::CreateTensor<float>(memory_info, input_tensor_values.data(), input_tensor_size, input_node_dims.data(), input_node_dims.size());
+    // memmove(&input_tensor_values[0], (float *)channels[0].data, _tensorWidth * _tensorHeight * sizeof(float));
+    // memmove(&input_tensor_values[_tensorWidth * _tensorHeight], (float *)channels[1].data, _tensorWidth * _tensorHeight * sizeof(float));
+    // memmove(&input_tensor_values[2 * _tensorWidth * _tensorHeight], (float *)channels[2].data, _tensorWidth * _tensorHeight * sizeof(float));
+
+    // auto memory_info = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
+    // Ort::TypeInfo type_info = _session->GetInputTypeInfo(0);
+    // auto tensor_info = type_info.GetTensorTypeAndShapeInfo();
+    // std::vector<int64_t> input_node_dims = {1, 3, 640, 640};
+    // Ort::Value input_tensor = Ort::Value::CreateTensor<float>(memory_info, input_tensor_values.data(), input_tensor_size, input_node_dims.data(), input_node_dims.size());
 
     std::vector<const char *> input_node_names = _inName;
     std::vector<const char *> output_node_names = _outName;
 
     auto start = std::chrono::high_resolution_clock::now();
     auto outputs = _session->Run(Ort::RunOptions{nullptr},
-                                                   input_node_names.data(), &input_tensor, 1, output_node_names.data(), output_node_names.size());
+                                 input_node_names.data(), &input_tensor, 1, output_node_names.data(), output_node_names.size());
     auto end = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
     std::cout << "time: " << duration << " millis." << std::endl;
 
-    float* all_data = outputs[0].GetTensorMutableData<float>();
-	auto data_shape = outputs[0].GetTensorTypeAndShapeInfo().GetShape();
-	cv::Mat output0 = cv::Mat(cv::Size((int)data_shape[2], (int)data_shape[1]), CV_32F, all_data).t();
-	auto mask_shape = outputs[1].GetTensorTypeAndShapeInfo().GetShape();
-	std::vector<int> mask_sz = { 1,(int)mask_shape[1],(int)mask_shape[2],(int)mask_shape[3] };
-	cv::Mat output1 = cv::Mat(mask_sz, CV_32F, outputs[1].GetTensorMutableData<float>());
+    float *all_data = outputs[0].GetTensorMutableData<float>();
+    auto data_shape = outputs[0].GetTensorTypeAndShapeInfo().GetShape();
+    cv::Mat output0 = cv::Mat(cv::Size((int)data_shape[2], (int)data_shape[1]), CV_32F, all_data).t();
+    auto mask_shape = outputs[1].GetTensorTypeAndShapeInfo().GetShape();
+    std::vector<int> mask_sz = {1, (int)mask_shape[1], (int)mask_shape[2], (int)mask_shape[3]};
+    cv::Mat output1 = cv::Mat(mask_sz, CV_32F, outputs[1].GetTensorMutableData<float>());
 
     ProcessOutput(output0, output1, raw_image);
 }
