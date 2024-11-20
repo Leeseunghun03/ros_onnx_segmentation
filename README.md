@@ -8,7 +8,7 @@ This ROS 2 package performs real-time image segmentation using the [ONNX Runtime
 ## Features
 - Real-time image segmentation using ONNX Runtime.
 - Compatible with ROS 2 (tested with Humble).
-- Supports any ONNX segmentation model.
+- Supports Yolo ONNX segmentation model.
 - Configurable parameters for input, output topics, and model path.
 - Efficient and lightweight for embedded and high-performance systems.
 
