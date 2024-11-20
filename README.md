@@ -1,7 +1,7 @@
 # ROS 2 Real-Time Image Segmentation with ONNX Runtime
 
 ## Overview
-This ROS 2 package performs real-time image segmentation using the [ONNX Runtime](https://onnxruntime.ai/). Designed for robotics applications, it processes camera input and generates segmented output in real-time. The package is lightweight and optimized for embedded systems and high-performance robotics environments.
+This ROS 2 package performs real-time image segmentation using the [ONNX Runtime](https://onnxruntime.ai/). Designed for robotics applications, it processes camera input and generates segmented output in real-time.
 
 ---
 
@@ -10,12 +10,11 @@ This ROS 2 package performs real-time image segmentation using the [ONNX Runtime
 - Compatible with ROS 2 (tested with Humble).
 - Supports Yolo ONNX segmentation model.
 - Configurable parameters for input, output topics, and model path.
-- Efficient and lightweight for embedded and high-performance systems.
 
 ---
 
 ## Requirements
-- ROS 2 Humble or later
+- ROS 2 Humble
 - ONNX Runtime (`onnxruntime` Python package)
 - OpenCV (`opencv-python` package)
 
