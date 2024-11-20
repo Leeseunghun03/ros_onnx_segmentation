@@ -11,14 +11,13 @@
 
 namespace yolo
 {
-    float conf_thresh = 0.3;
-    float mask_thresh = 0.5;
-    float iou_thresh = 0.5;
+    float conf_thresh = 0.35;
+    float mask_thresh = 0.3;
+    float iou_thresh = 0.6;
 
     int seg_ch = 32;
     int seg_w = 160, seg_h = 160;
 
-    const std::string kDefaultLabel = "person";
     std::vector<std::string> class_names =
         {
             "outside", "field", "line", "ball", "player"};
@@ -33,7 +32,6 @@ namespace yolo
         OnnxProcessor::init(node);
         _outName = {"output0", "output1"};
         _inName = {"images"};
-        _node->get_parameter_or("label", _label, kDefaultLabel);
 
         srand(time(0));
         for (int i = 0; i < class_names.size(); i++)
@@ -93,7 +91,7 @@ namespace yolo
         std::vector<int> nms_result;
         cv::dnn::NMSBoxes(boxes, accus, conf_thresh, iou_thresh, nms_result);
 
-        // int target_class = 4; 
+        // int target_class = 4;
 
         for (int i = 0; i < nms_result.size(); ++i)
         {
@@ -172,6 +170,11 @@ namespace yolo
 
     void YoloProcessor::draw_result(cv::Mat img, std::vector<Obj> &result, std::vector<cv::Scalar> color)
     {
+        static auto last_time = std::chrono::high_resolution_clock::now(); // 이전 프레임의 시간 저장
+        auto current_time = std::chrono::high_resolution_clock::now();
+        float fps = 1000.0 / std::chrono::duration_cast<std::chrono::milliseconds>(current_time - last_time).count();
+        last_time = current_time; // 현재 시간을 이전 시간으로 업데이트
+
         cv::Mat mask = img.clone();
         for (int i = 0; i < result.size(); i++)
         {
@@ -188,6 +191,10 @@ namespace yolo
             // cv::putText(img, label, cv::Point(left, top), cv::FONT_HERSHEY_SIMPLEX, 2, color[result[i].id], 4);
         }
         cv::addWeighted(img, 0.6, mask, 0.4, 0, img);
+
+        std::string fps_text = cv::format("FPS: %.2f", fps);
+        cv::putText(img, fps_text, cv::Point(10, 50), cv::FONT_HERSHEY_SIMPLEX, 1.5, cv::Scalar(0, 255, 0), 3);
+
         cv::resize(img, img, cv::Size(640, 640));
         cv::imshow("img", img);
         cv::waitKey(1);
