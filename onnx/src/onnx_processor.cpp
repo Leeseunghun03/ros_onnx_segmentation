@@ -191,36 +191,6 @@ void OnnxProcessor::ProcessImage(const sensor_msgs::msg::Image::SharedPtr msg)
         Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault),
         (float *)blob.data, 3 * 640 * 640, input_shape.data(), input_shape.size());
 
-    // // Convert to RGB
-    // cv::Mat rgb_image;
-    // cv::cvtColor(image_resized, rgb_image, cv::COLOR_BGR2RGB);
-
-    // // Set the image to 32-bit floating point values for tensorization.
-    // cv::Mat image_32_bit;
-    // rgb_image.convertTo(image_32_bit, CV_32F);
-
-    // if (_normalize)
-    // {
-    //     cv::normalize(image_32_bit, image_32_bit, 0.0f, 1.0f, cv::NORM_MINMAX);
-    // }
-
-    // cv::Mat channels[3];
-    // cv::split(image_32_bit, channels);
-
-    // size_t input_tensor_size = _tensorHeight * _tensorWidth * 3;
-
-    // std::vector<float> input_tensor_values(input_tensor_size);
-
-    // memmove(&input_tensor_values[0], (float *)channels[0].data, _tensorWidth * _tensorHeight * sizeof(float));
-    // memmove(&input_tensor_values[_tensorWidth * _tensorHeight], (float *)channels[1].data, _tensorWidth * _tensorHeight * sizeof(float));
-    // memmove(&input_tensor_values[2 * _tensorWidth * _tensorHeight], (float *)channels[2].data, _tensorWidth * _tensorHeight * sizeof(float));
-
-    // auto memory_info = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
-    // Ort::TypeInfo type_info = _session->GetInputTypeInfo(0);
-    // auto tensor_info = type_info.GetTensorTypeAndShapeInfo();
-    // std::vector<int64_t> input_node_dims = {1, 3, 640, 640};
-    // Ort::Value input_tensor = Ort::Value::CreateTensor<float>(memory_info, input_tensor_values.data(), input_tensor_size, input_node_dims.data(), input_node_dims.size());
-
     std::vector<const char *> input_node_names = _inName;
     std::vector<const char *> output_node_names = _outName;
 
