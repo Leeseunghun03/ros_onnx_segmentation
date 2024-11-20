@@ -15,9 +15,9 @@ This ROS 2 package performs real-time image segmentation using the [ONNX Runtime
 
 ## Requirements
 - ROS 2 Humble
-- ONNX Runtime (`onnxruntime` Python package)
-- OpenCV (`opencv-python` package)
+- ONNX Runtime (Auto Installed)
+- OpenCV 4.5 or later
 
-To install dependencies:
-```bash
-pip install onnxruntime opencv-python
+## Usage
+```
+git clone 
