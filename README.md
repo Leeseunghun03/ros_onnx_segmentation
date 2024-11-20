@@ -31,7 +31,8 @@ colcon build --symlink-install
 ```
 
 2. Customize Parameters Adjust parameters such as class, input_topic, output_topic, and other settings in the provided configuration file or via command-line arguments.
-3. Run the Camera Package Start your camera package to publish raw image data to a topic (e.g., /camera/image_raw).
+3. Run the Camera Package Start your camera package to publish raw image data to a topic
+   (e.g., /camera/image_raw).
 4. Launch the Segmentation Package Run the segmentation package using the launch file:
 ```
 ros2 launch ros_onnx_segmentation segmentation_launch.py
