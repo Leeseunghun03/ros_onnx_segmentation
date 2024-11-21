@@ -38,7 +38,7 @@ colcon build --symlink-install
 ros2 launch ros_onnx_segmentation segmentation_launch.py
 ```
 
-## Example (Custom model using Yolov8n-seg)
+## Example (Custom model using Yolov8n-seg / without GPU)
 
 ![seg_s-ezgif com-video-to-gif-converter](https://github.com/user-attachments/assets/e95fa76d-9802-4f28-9685-b906d511643d)
 
