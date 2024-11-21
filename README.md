@@ -37,3 +37,6 @@ colcon build --symlink-install
 ```
 ros2 launch ros_onnx_segmentation segmentation_launch.py
 ```
+
+## Example (Custom model using Yolov8n-seg)
+
