@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <numeric>
 #include <functional>
+#include <map>
 
 namespace yolo
 {
@@ -91,31 +92,66 @@ namespace yolo
         std::vector<int> nms_result;
         cv::dnn::NMSBoxes(boxes, accus, conf_thresh, iou_thresh, nms_result);
 
-        // int target_class = 4;
+        seg_msgs::msg::ObjectInfoArray object_info_array_msg;
+        std::map<std::string, seg_msgs::msg::ObjectInfo> class_groups;
 
         for (int i = 0; i < nms_result.size(); ++i)
         {
             int idx = nms_result[i];
-            // if (class_ids[idx] != target_class) // 원하는 클래스만 선택
-            //     continue;
+
+            // 객체의 bounding box를 이미지 크기에 맞게 클리핑
             boxes[idx] = boxes[idx] & cv::Rect(0, 0, img_info.raw_size.width, img_info.raw_size.height);
+
             Obj result = {class_ids[idx], accus[idx], boxes[idx]};
+
+            // 마스크 정보를 가져오는 함수 호출
             get_mask(cv::Mat(masks[idx]).t(), output1, img_info, boxes[idx], result.mask);
+
             if (!result.mask.empty())
+            {
                 seg_result.push_back(result);
+
+                // 클래스 이름으로 객체를 그룹화
+                std::string class_name = class_names[result.id];
+                if (class_groups.find(class_name) == class_groups.end())
+                {
+                    // 새로운 클래스가 처음 등장하면 초기화
+                    seg_msgs::msg::ObjectInfo object_info_msg;
+                    object_info_msg.class_name = class_name;
+                    class_groups[class_name] = object_info_msg;
+                }
+
+                // 각 객체의 위치, 크기 추가
+                class_groups[class_name].object_count += 1;
+                class_groups[class_name].x_position.push_back(result.bound.x);
+                class_groups[class_name].y_position.push_back(result.bound.y);
+                class_groups[class_name].width.push_back(result.bound.width);
+                class_groups[class_name].height.push_back(result.bound.height);
+            }
         }
 
+        // 클래스별로 그룹화된 객체들을 ObjectInfoArray에 추가
+        for (const auto &pair : class_groups)
+        {
+            object_info_array_msg.objects.push_back(pair.second);
+        }
+
+        // 객체 정보 배열을 퍼블리셔로 발행
+        if (!object_info_array_msg.objects.empty())
+        {
+            object_info_pub_->publish(object_info_array_msg);
+        }
+
+        // 기존 코드에서 처리된 결과를 이미지로 변환
+        cv::Mat pub_image;
         cv::Mat output_image = raw_image.clone();
         if (seg_result.size() > 0)
         {
-            draw_result(output_image, seg_result, color);
+            pub_image = draw_result(output_image, seg_result, color);
         }
 
-        // std::cout << "Class-wise Object Count:" << std::endl;
-        // for (const auto &entry : class_count)
-        // {
-        //     std::cout << "Class ID " << entry.first << ": " << entry.second << " objects" << std::endl;
-        // }
+        auto msg = cv_bridge::CvImage(std_msgs::msg::Header(), "bgr8", pub_image).toImageMsg();
+        image_pub_->publish(*msg);
     }
 
     void YoloProcessor::get_mask(const cv::Mat &mask_info, const cv::Mat &mask_data, const ImageInfo &para, cv::Rect bound, cv::Mat &mask_out)
@@ -168,7 +204,7 @@ namespace yolo
         }
     }
 
-    void YoloProcessor::draw_result(cv::Mat img, std::vector<Obj> &result, std::vector<cv::Scalar> color)
+    cv::Mat YoloProcessor::draw_result(cv::Mat img, std::vector<Obj> &result, std::vector<cv::Scalar> color)
     {
         static auto last_time = std::chrono::high_resolution_clock::now(); // 이전 프레임의 시간 저장
         auto current_time = std::chrono::high_resolution_clock::now();
@@ -198,5 +234,7 @@ namespace yolo
         cv::resize(img, img, cv::Size(640, 640));
         cv::imshow("img", img);
         cv::waitKey(1);
+
+        return img;
     }
 }
