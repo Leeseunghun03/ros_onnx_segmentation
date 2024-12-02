@@ -1,0 +1,2 @@
+# ObjectInfoArray.msg
+ObjectInfo[] objects

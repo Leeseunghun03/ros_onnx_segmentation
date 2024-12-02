@@ -2,14 +2,12 @@
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/image.hpp>
 #include <std_msgs/msg/string.hpp>
-
 #include <cv_bridge/cv_bridge.h>
-
 #include <onnxruntime_cxx_api.h>
-
 #include <opencv2/opencv.hpp>
-
 #include <opencv2/dnn.hpp>
+#include "seg_msgs/msg/object_info_array.hpp"
+#include "seg_msgs/msg/object_info.hpp"
 
 class OnnxProcessor
 {
@@ -69,6 +67,7 @@ protected:
 
     rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr subscription_;
     rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr image_pub_;
+    rclcpp::Publisher<seg_msgs::msg::ObjectInfoArray>::SharedPtr object_info_pub_;
 };
 
 class OnnxTracker

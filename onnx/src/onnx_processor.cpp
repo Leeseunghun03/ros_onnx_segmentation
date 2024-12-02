@@ -125,6 +125,7 @@ bool OnnxProcessor::init(rclcpp::Node::SharedPtr &node)
     _node->get_parameter("image_debug_topic", image_pub_topic_);
 
     image_pub_ = _node->create_publisher<sensor_msgs::msg::Image>(image_pub_topic_, 10);
+    object_info_pub_ = node->create_publisher<seg_msgs::msg::ObjectInfoArray>("object_info_array", 10);
     subscription_ = _node->create_subscription<sensor_msgs::msg::Image>(
         image_topic_, 10, std::bind(&OnnxProcessor::ProcessImage, this, _1));
 

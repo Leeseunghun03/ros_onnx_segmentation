@@ -42,7 +42,7 @@ namespace yolo
     protected:
         void get_mask(const cv::Mat& mask_info, const cv::Mat& mask_data, const ImageInfo& para, cv::Rect bound, cv::Mat& mast_out);
         virtual void ProcessOutput(const cv::Mat &output0, const cv::Mat &output1, const cv::Mat &raw_image);
-        void draw_result(cv::Mat img, std::vector<Obj> &result, std::vector<cv::Scalar> color);
+        cv::Mat draw_result(cv::Mat img, std::vector<Obj> &result, std::vector<cv::Scalar> color);
 
     private:
         std::vector<cv::Scalar> color;
