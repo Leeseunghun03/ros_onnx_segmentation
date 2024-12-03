@@ -17,6 +17,8 @@ def generate_launch_description():
         'model',
         'run15.onnx')
     
+    class_names = ["outside", "field", "line", "ball", "player"]
+    
     os_name = platform.system()
     os_flag = "false" if os_name == 'Windows' else "true"  # default to Linux
 
@@ -31,8 +33,12 @@ def generate_launch_description():
             parameters=[
                 {'onnx_model_path': launch.substitutions.LaunchConfiguration('onnx_model_path_arg')},
                 {'confidence': 0.5},
+                {'conf_thresh': 0.35},
+                {'mask_thresh': 0.3},
+                {'iou_thresh': 0.6},
                 {'tensor_width': 640},
                 {'tensor_height': 640},
+                {'class_names': class_names},
                 {'debug': True}
             ]),
     ])

@@ -69,7 +69,6 @@ bool OnnxProcessor::init(rclcpp::Node::SharedPtr &node)
         catch (std::exception &e)
         {
             RCLCPP_ERROR(_node->get_logger(), "Failed to read the calibration file, continuing without calibration.\n%s", e.what());
-            // no calibration for you.
             _calibration = "";
         }
     }
@@ -96,13 +95,8 @@ bool OnnxProcessor::init(rclcpp::Node::SharedPtr &node)
         }
     }
 
-    // Generate onnx session
-    //*************************************************************************
-    // initialize  enviroment...one enviroment per process
-    // enviroment maintains thread pools and other state info
     _env = std::make_shared<Ort::Env>(ORT_LOGGING_LEVEL_WARNING, "test");
 
-    // initialize session options if needed
     Ort::SessionOptions session_options;
     session_options.SetIntraOpNumThreads(1);
     session_options.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_EXTENDED);
@@ -117,7 +111,20 @@ bool OnnxProcessor::init(rclcpp::Node::SharedPtr &node)
     _allocator = std::make_shared<Ort::AllocatorWithDefaultOptions>();
     DumpParameters();
 
-    // Set up publishers and subscribers
+    _node->get_parameter("conf_thresh", conf_thresh);
+    _node->get_parameter("mask_thresh", mask_thresh);
+    _node->get_parameter("iou_thresh", iou_thresh);
+    _node->get_parameter("class_names", class_names);
+
+    std::ostringstream oss;
+    for (size_t i = 0; i < class_names.size(); ++i)
+    {
+        oss << class_names[i];
+        if (i != class_names.size() - 1)
+            oss << ", ";
+    }
+    RCLCPP_INFO(_node->get_logger(), "Class names: %s", oss.str().c_str());
+
     std::string image_topic_ = "camera/image_raw";
     std::string image_pub_topic_ = "image_debug_raw";
 
@@ -200,7 +207,7 @@ void OnnxProcessor::ProcessImage(const sensor_msgs::msg::Image::SharedPtr msg)
                                  input_node_names.data(), &input_tensor, 1, output_node_names.data(), output_node_names.size());
     auto end = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
-    std::cout << "time: " << duration << " millis." << std::endl;
+    // std::cout << "time: " << duration << " millis." << std::endl;
 
     float *all_data = outputs[0].GetTensorMutableData<float>();
     auto data_shape = outputs[0].GetTensorTypeAndShapeInfo().GetShape();
@@ -214,16 +221,11 @@ void OnnxProcessor::ProcessImage(const sensor_msgs::msg::Image::SharedPtr msg)
 
 void OnnxProcessor::DumpParameters()
 {
-    //*************************************************************************
-    // print model input layer (node names, types, shape etc.)
-
-    // print number of model input nodes
     size_t num_input_nodes = _session->GetInputCount();
     std::vector<const char *> input_node_names;
     input_node_names.resize(num_input_nodes);
-    std::vector<int64_t> input_node_dims; // simplify... this model has only 1 input node {1, 3, 224, 224}.
-                                          // Otherwise need vector<vector<>>
-
+    std::vector<int64_t> input_node_dims; 
+                                        
     printf("Number of inputs = %zu\n", num_input_nodes);
 
     // iterate over all input nodes
@@ -248,17 +250,13 @@ void OnnxProcessor::DumpParameters()
             printf("Input %d : dim %d=%jd\n", i, j, input_node_dims[j]);
     }
 
-    //*************************************************************************
-    // print model output layer (node names, types, shape etc.)
     size_t num_output_nodes = _session->GetOutputCount();
     std::vector<const char *> output_node_names;
     output_node_names.resize(num_output_nodes);
-    std::vector<int64_t> output_node_dims; // simplify... this model has only 1 input node {1, 3, 224, 224}.
-                                           // Otherwise need vector<vector<>>
+    std::vector<int64_t> output_node_dims; 
 
     printf("Number of outputs = %zu\n", num_output_nodes);
 
-    // iterate over all output nodes
     for (int i = 0; i < num_output_nodes; i++)
     {
         // print output node names
@@ -289,11 +287,14 @@ bool OnnxTracker::init(rclcpp::Node::SharedPtr &node)
     node->declare_parameter<double>("confidence", 0.5);
     node->declare_parameter<uint16_t>("tensor_width", 640);
     node->declare_parameter<uint16_t>("tensor_height", 640);
+    node->declare_parameter<float>("conf_thresh", 0.35);
+    node->declare_parameter<float>("mask_thresh", 0.3);
+    node->declare_parameter<float>("iou_thresh", 0.6);
     node->declare_parameter<bool>("debug", false);
     node->declare_parameter<std::string>("image_processing", "resize");
-    node->declare_parameter<std::string>("label", "person");
     node->declare_parameter<std::string>("image_topic", "/camera/image_raw");
     node->declare_parameter<std::string>("image_debug_topic", "image_debug_raw");
+    node->declare_parameter<std::vector<std::string>>("class_names", {"outside", "field", "line", "ball", "player"});
 
     _processor = std::make_shared<yolo::YoloProcessor>();
 
