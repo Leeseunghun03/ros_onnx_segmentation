@@ -12,16 +12,8 @@
 
 namespace yolo
 {
-    float conf_thresh = 0.35;
-    float mask_thresh = 0.3;
-    float iou_thresh = 0.6;
-
     int seg_ch = 32;
     int seg_w = 160, seg_h = 160;
-
-    std::vector<std::string> class_names =
-        {
-            "outside", "field", "line", "ball", "player"};
 
     YoloProcessor::YoloProcessor()
     {
@@ -99,29 +91,29 @@ namespace yolo
         {
             int idx = nms_result[i];
 
-            // 객체의 bounding box를 이미지 크기에 맞게 클리핑
+            // Clip the object's bounding box to fit within the image size
             boxes[idx] = boxes[idx] & cv::Rect(0, 0, img_info.raw_size.width, img_info.raw_size.height);
 
             Obj result = {class_ids[idx], accus[idx], boxes[idx]};
 
-            // 마스크 정보를 가져오는 함수 호출
+            // Call the function to get the mask information
             get_mask(cv::Mat(masks[idx]).t(), output1, img_info, boxes[idx], result.mask);
 
             if (!result.mask.empty())
             {
                 seg_result.push_back(result);
 
-                // 클래스 이름으로 객체를 그룹화
+                // Group objects by their class name
                 std::string class_name = class_names[result.id];
                 if (class_groups.find(class_name) == class_groups.end())
                 {
-                    // 새로운 클래스가 처음 등장하면 초기화
+                    // Initialize when a new class appears for the first time
                     seg_msgs::msg::ObjectInfo object_info_msg;
                     object_info_msg.class_name = class_name;
                     class_groups[class_name] = object_info_msg;
                 }
 
-                // 각 객체의 위치, 크기 추가
+                // Add the object's position and size
                 class_groups[class_name].object_count += 1;
                 class_groups[class_name].x_position.push_back(result.bound.x);
                 class_groups[class_name].y_position.push_back(result.bound.y);
@@ -130,19 +122,19 @@ namespace yolo
             }
         }
 
-        // 클래스별로 그룹화된 객체들을 ObjectInfoArray에 추가
+        // Add grouped objects for each class to the ObjectInfoArray
         for (const auto &pair : class_groups)
         {
             object_info_array_msg.objects.push_back(pair.second);
         }
 
-        // 객체 정보 배열을 퍼블리셔로 발행
+        // Publish the object information array if not empty
         if (!object_info_array_msg.objects.empty())
         {
             object_info_pub_->publish(object_info_array_msg);
         }
 
-        // 기존 코드에서 처리된 결과를 이미지로 변환
+        // Convert the processed results to an image
         cv::Mat pub_image;
         cv::Mat output_image = raw_image.clone();
         if (seg_result.size() > 0)
@@ -206,10 +198,10 @@ namespace yolo
 
     cv::Mat YoloProcessor::draw_result(cv::Mat img, std::vector<Obj> &result, std::vector<cv::Scalar> color)
     {
-        static auto last_time = std::chrono::high_resolution_clock::now(); // 이전 프레임의 시간 저장
+        static auto last_time = std::chrono::high_resolution_clock::now();
         auto current_time = std::chrono::high_resolution_clock::now();
         float fps = 1000.0 / std::chrono::duration_cast<std::chrono::milliseconds>(current_time - last_time).count();
-        last_time = current_time; // 현재 시간을 이전 시간으로 업데이트
+        last_time = current_time;
 
         cv::Mat mask = img.clone();
         for (int i = 0; i < result.size(); i++)

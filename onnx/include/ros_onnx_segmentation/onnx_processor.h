@@ -41,12 +41,16 @@ protected:
     std::vector<const char *> _outName;
     std::string _linkName;
     std::string _onnxModel;
+    std::vector<std::string> class_names;
 
     std::string _calibration;
     cv::Mat _camera_matrix;
     cv::Mat _dist_coeffs;
 
     float _confidence;
+    float conf_thresh = 0.35;
+    float mask_thresh = 0.3;
+    float iou_thresh = 0.6;
 
     bool _debug;
     bool _normalize;
