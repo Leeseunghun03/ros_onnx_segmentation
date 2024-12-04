@@ -193,11 +193,11 @@ void OnnxProcessor::ProcessImage(const sensor_msgs::msg::Image::SharedPtr msg)
         image_resized = image_resized(ROI);
     }
 
-    std::vector<int64_t> input_shape = {1, 3, 640, 640};
-    cv::Mat blob = cv::dnn::blobFromImage(image_resized, 1 / 255.0, cv::Size(640, 640), cv::Scalar(0, 0, 0), true, false);
+    std::vector<int64_t> input_shape = {1, 3, _tensorWidth, _tensorHeight};
+    cv::Mat blob = cv::dnn::blobFromImage(image_resized, 1 / 255.0, cv::Size(_tensorWidth, _tensorHeight), cv::Scalar(0, 0, 0), true, false);
     Ort::Value input_tensor = Ort::Value::CreateTensor<float>(
         Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault),
-        (float *)blob.data, 3 * 640 * 640, input_shape.data(), input_shape.size());
+        (float *)blob.data, 3 * _tensorWidth * _tensorHeight, input_shape.data(), input_shape.size());
 
     std::vector<const char *> input_node_names = _inName;
     std::vector<const char *> output_node_names = _outName;
