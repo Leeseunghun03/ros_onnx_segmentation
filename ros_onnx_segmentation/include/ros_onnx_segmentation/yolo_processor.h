@@ -6,7 +6,7 @@
 #include <ros_onnx_segmentation/onnx_processor.h>
 #include <vision_msgs/msg/detection2_d_array.hpp>
 
-namespace yolo
+namespace ros_onnx_segmentation
 {
     struct Obj
     {
@@ -21,13 +21,14 @@ namespace yolo
     class YoloProcessor : public OnnxProcessor
     {
     public:
-        bool init(rclcpp::Node::SharedPtr &node) override;
+        explicit YoloProcessor(const rclcpp::NodeOptions &options = rclcpp::NodeOptions());
 
     protected:
         void ProcessOutput(std::vector<Ort::Value> &outputs, const ImageInfo &info,
                            const cv::Mat &image, const std_msgs::msg::Header &header) override;
 
     private:
+        bool init_yolo();
         std::vector<std::string> read_class_names() const;
         cv::Mat get_mask(const cv::Mat &coeffs, const cv::Mat &protos, const ImageInfo &info, const cv::Rect &bound) const;
         std::vector<size_t> assign_colors(const std::vector<Obj> &objs);

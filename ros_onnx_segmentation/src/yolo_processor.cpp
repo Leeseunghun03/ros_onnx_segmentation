@@ -3,19 +3,28 @@
 #include <algorithm>
 #include <cmath>
 #include <regex>
+#include <stdexcept>
 
-namespace yolo
+#include <rclcpp_components/register_node_macro.hpp>
+
+namespace ros_onnx_segmentation
 {
-    bool YoloProcessor::init(rclcpp::Node::SharedPtr &node)
+    YoloProcessor::YoloProcessor(const rclcpp::NodeOptions &options)
+        : OnnxProcessor("ros_onnx_segmentation", options)
     {
-        if (!OnnxProcessor::init(node))
-            return false;
+        if (!init() || !init_yolo())
+            throw std::runtime_error("ros_onnx_segmentation failed to start, see the log above");
+        Start();
+    }
 
-        _confThresh = static_cast<float>(_node->declare_parameter<double>("conf_thresh", 0.35));
-        _iouThresh = static_cast<float>(_node->declare_parameter<double>("iou_thresh", 0.6));
-        double mask_thresh = _node->declare_parameter<double>("mask_thresh", 0.3);
-        auto debug_topic = _node->declare_parameter<std::string>("image_debug_topic", "image_debug_raw");
-        _classNames = _node->declare_parameter<std::vector<std::string>>("class_names", std::vector<std::string>{});
+    bool YoloProcessor::init_yolo()
+    {
+
+        _confThresh = static_cast<float>(declare_parameter<double>("conf_thresh", 0.35));
+        _iouThresh = static_cast<float>(declare_parameter<double>("iou_thresh", 0.6));
+        double mask_thresh = declare_parameter<double>("mask_thresh", 0.3);
+        auto debug_topic = declare_parameter<std::string>("image_debug_topic", "image_debug_raw");
+        _classNames = declare_parameter<std::vector<std::string>>("class_names", std::vector<std::string>{});
 
         // Compare against the logit instead of applying sigmoid to every pixel.
         mask_thresh = std::min(std::max(mask_thresh, 1e-6), 1.0 - 1e-6);
@@ -23,7 +32,7 @@ namespace yolo
 
         if (_outputNames.size() != 2)
         {
-            RCLCPP_ERROR(_node->get_logger(), "Expected a segmentation model with 2 outputs, got %zu", _outputNames.size());
+            RCLCPP_ERROR(get_logger(), "Expected a segmentation model with 2 outputs, got %zu", _outputNames.size());
             return false;
         }
 
@@ -40,7 +49,7 @@ namespace yolo
         const auto &proto = shapes[_protoIndex];
         if (det.size() != 3 || proto.size() != 4)
         {
-            RCLCPP_ERROR(_node->get_logger(), "Unexpected output shapes");
+            RCLCPP_ERROR(get_logger(), "Unexpected output shapes");
             return false;
         }
 
@@ -50,7 +59,7 @@ namespace yolo
         int num_classes = static_cast<int>(det[1]) - 4 - _maskChannels;
         if (num_classes <= 0)
         {
-            RCLCPP_ERROR(_node->get_logger(), "Could not infer the number of classes from the model");
+            RCLCPP_ERROR(get_logger(), "Could not infer the number of classes from the model");
             return false;
         }
 
@@ -59,7 +68,7 @@ namespace yolo
         if (static_cast<int>(_classNames.size()) != num_classes)
         {
             if (!_classNames.empty())
-                RCLCPP_WARN(_node->get_logger(), "class_names has %zu entries but the model has %d classes",
+                RCLCPP_WARN(get_logger(), "class_names has %zu entries but the model has %d classes",
                             _classNames.size(), num_classes);
             _classNames.resize(num_classes);
             for (int i = 0; i < num_classes; ++i)
@@ -78,12 +87,12 @@ namespace yolo
         for (int i = 0; i < bgr.cols; ++i)
             _colors.emplace_back(bgr.at<cv::Vec3b>(0, i));
 
-        _detectionPub = _node->create_publisher<vision_msgs::msg::Detection2DArray>("detections", 10);
-        _maskPub = _node->create_publisher<sensor_msgs::msg::Image>("instance_mask", 10);
+        _detectionPub = create_publisher<vision_msgs::msg::Detection2DArray>("detections", 10);
+        _maskPub = create_publisher<sensor_msgs::msg::Image>("instance_mask", 10);
         if (_debug)
-            _debugPub = _node->create_publisher<sensor_msgs::msg::Image>(debug_topic, 10);
+            _debugPub = create_publisher<sensor_msgs::msg::Image>(debug_topic, 10);
 
-        RCLCPP_INFO(_node->get_logger(), "%d classes, mask prototypes %dx%dx%d",
+        RCLCPP_INFO(get_logger(), "%d classes, mask prototypes %dx%dx%d",
                     num_classes, _maskChannels, _protoWidth, _protoHeight);
         return true;
     }
@@ -157,8 +166,8 @@ namespace yolo
         std::vector<int> keep;
         cv::dnn::NMSBoxes(nms_boxes, scores, _confThresh, _iouThresh, keep);
 
-        vision_msgs::msg::Detection2DArray det_msg;
-        det_msg.header = header;
+        auto det_msg = std::make_unique<vision_msgs::msg::Detection2DArray>();
+        det_msg->header = header;
         std::vector<Obj> objs;
 
         for (int idx : keep)
@@ -184,12 +193,12 @@ namespace yolo
             hyp.hypothesis.class_id = _classNames[obj.id];
             hyp.hypothesis.score = obj.accu;
             d.results.push_back(hyp);
-            det_msg.detections.push_back(std::move(d));
+            det_msg->detections.push_back(std::move(d));
 
             objs.push_back(std::move(obj));
         }
 
-        _detectionPub->publish(det_msg);
+        _detectionPub->publish(std::move(det_msg));
 
         if (_maskPub->get_subscription_count() > 0)
         {
@@ -200,13 +209,16 @@ namespace yolo
                 cv::Mat roi = ids(objs[i].bound);
                 roi.setTo(cv::Scalar(static_cast<double>(i + 1)), objs[i].mask & (roi == 0));
             }
-            _maskPub->publish(*cv_bridge::CvImage(header, "mono16", ids).toImageMsg());
+            auto msg = std::make_unique<sensor_msgs::msg::Image>();
+            cv_bridge::CvImage(header, "mono16", ids).toImageMsg(*msg);
+            _maskPub->publish(std::move(msg));
         }
 
         if (_debugPub && _debugPub->get_subscription_count() > 0)
         {
-            auto msg = cv_bridge::CvImage(header, "bgr8", draw_result(image, objs)).toImageMsg();
-            _debugPub->publish(*msg);
+            auto msg = std::make_unique<sensor_msgs::msg::Image>();
+            cv_bridge::CvImage(header, "bgr8", draw_result(image, objs)).toImageMsg(*msg);
+            _debugPub->publish(std::move(msg));
         }
     }
 
@@ -309,3 +321,5 @@ namespace yolo
         return out;
     }
 }
+
+RCLCPP_COMPONENTS_REGISTER_NODE(ros_onnx_segmentation::YoloProcessor)

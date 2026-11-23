@@ -9,26 +9,32 @@
 #include <locale>
 #endif
 
+namespace ros_onnx_segmentation
+{
+
 using std::placeholders::_1;
 
-bool OnnxProcessor::init(rclcpp::Node::SharedPtr &node)
+OnnxProcessor::OnnxProcessor(const std::string &name, const rclcpp::NodeOptions &options)
+    : rclcpp::Node(name, options)
 {
-    _node = node;
+}
 
-    auto model_path = _node->declare_parameter<std::string>("onnx_model_path", "");
-    auto image_topic = _node->declare_parameter<std::string>("image_topic", "camera/image_raw");
-    auto processing = _node->declare_parameter<std::string>("image_processing", "letterbox");
-    auto num_threads = _node->declare_parameter<int>("num_threads", 1);
-    auto tensor_width = _node->declare_parameter<int>("tensor_width", 640);
-    auto tensor_height = _node->declare_parameter<int>("tensor_height", 640);
-    auto provider = _node->declare_parameter<std::string>("execution_provider", "cpu");
-    auto device_id = _node->declare_parameter<int>("device_id", 0);
-    auto trt_cache_dir = _node->declare_parameter<std::string>("trt_cache_dir", "");
-    _debug = _node->declare_parameter<bool>("debug", false);
+bool OnnxProcessor::init()
+{
+    auto model_path = declare_parameter<std::string>("onnx_model_path", "");
+    _imageTopic = declare_parameter<std::string>("image_topic", "camera/image_raw");
+    auto processing = declare_parameter<std::string>("image_processing", "letterbox");
+    auto num_threads = declare_parameter<int>("num_threads", 1);
+    auto tensor_width = declare_parameter<int>("tensor_width", 640);
+    auto tensor_height = declare_parameter<int>("tensor_height", 640);
+    auto provider = declare_parameter<std::string>("execution_provider", "cpu");
+    auto device_id = declare_parameter<int>("device_id", 0);
+    auto trt_cache_dir = declare_parameter<std::string>("trt_cache_dir", "");
+    _debug = declare_parameter<bool>("debug", false);
 
     if (model_path.empty())
     {
-        RCLCPP_ERROR(_node->get_logger(), "onnx_model_path is not set");
+        RCLCPP_ERROR(get_logger(), "onnx_model_path is not set");
         return false;
     }
 
@@ -38,7 +44,7 @@ bool OnnxProcessor::init(rclcpp::Node::SharedPtr &node)
     }
     else if (processing != "letterbox")
     {
-        RCLCPP_WARN(_node->get_logger(), "Unknown image_processing '%s', using letterbox", processing.c_str());
+        RCLCPP_WARN(get_logger(), "Unknown image_processing '%s', using letterbox", processing.c_str());
     }
 
     _env = std::make_unique<Ort::Env>(ORT_LOGGING_LEVEL_WARNING, "ros_onnx_segmentation");
@@ -59,7 +65,7 @@ bool OnnxProcessor::init(rclcpp::Node::SharedPtr &node)
     }
     catch (const Ort::Exception &e)
     {
-        RCLCPP_ERROR(_node->get_logger(), "Failed to load %s: %s", model_path.c_str(), e.what());
+        RCLCPP_ERROR(get_logger(), "Failed to load %s: %s", model_path.c_str(), e.what());
         return false;
     }
 
@@ -79,12 +85,15 @@ bool OnnxProcessor::init(rclcpp::Node::SharedPtr &node)
     _tensorHeight = is_static ? static_cast<int>(shape[2]) : tensor_height;
     _tensorWidth = is_static ? static_cast<int>(shape[3]) : tensor_width;
 
-    RCLCPP_INFO(_node->get_logger(), "Loaded %s (input %dx%d)", model_path.c_str(), _tensorWidth, _tensorHeight);
-
-    _imageSub = _node->create_subscription<sensor_msgs::msg::Image>(
-        image_topic, rclcpp::SensorDataQoS(), std::bind(&OnnxProcessor::ProcessImage, this, _1));
+    RCLCPP_INFO(get_logger(), "Loaded %s (input %dx%d)", model_path.c_str(), _tensorWidth, _tensorHeight);
 
     return true;
+}
+
+void OnnxProcessor::Start()
+{
+    _imageSub = create_subscription<sensor_msgs::msg::Image>(
+        _imageTopic, rclcpp::SensorDataQoS(), std::bind(&OnnxProcessor::ProcessImage, this, _1));
 }
 
 void OnnxProcessor::AppendExecutionProvider(Ort::SessionOptions &options, const std::string &provider,
@@ -94,7 +103,7 @@ void OnnxProcessor::AppendExecutionProvider(Ort::SessionOptions &options, const 
         return;
     if (provider != "cuda" && provider != "tensorrt")
     {
-        RCLCPP_WARN(_node->get_logger(), "Unknown execution_provider '%s', using cpu", provider.c_str());
+        RCLCPP_WARN(get_logger(), "Unknown execution_provider '%s', using cpu", provider.c_str());
         return;
     }
 
@@ -126,11 +135,11 @@ void OnnxProcessor::AppendExecutionProvider(Ort::SessionOptions &options, const 
         OrtCUDAProviderOptions cuda;
         cuda.device_id = device_id;
         options.AppendExecutionProvider_CUDA(cuda);
-        RCLCPP_INFO(_node->get_logger(), "Using %s execution provider on device %d", provider.c_str(), device_id);
+        RCLCPP_INFO(get_logger(), "Using %s execution provider on device %d", provider.c_str(), device_id);
     }
     catch (const Ort::Exception &e)
     {
-        RCLCPP_WARN(_node->get_logger(), "%s execution provider is not available, using cpu: %s", provider.c_str(), e.what());
+        RCLCPP_WARN(get_logger(), "%s execution provider is not available, using cpu: %s", provider.c_str(), e.what());
     }
 }
 
@@ -173,7 +182,7 @@ void OnnxProcessor::ProcessImage(const sensor_msgs::msg::Image::ConstSharedPtr m
     }
     catch (const cv_bridge::Exception &e)
     {
-        RCLCPP_ERROR_THROTTLE(_node->get_logger(), *_node->get_clock(), 5000, "cv_bridge: %s", e.what());
+        RCLCPP_ERROR_THROTTLE(get_logger(), *get_clock(), 5000, "cv_bridge: %s", e.what());
         return;
     }
 
@@ -198,9 +207,11 @@ void OnnxProcessor::ProcessImage(const sensor_msgs::msg::Image::ConstSharedPtr m
     }
     catch (const Ort::Exception &e)
     {
-        RCLCPP_ERROR_THROTTLE(_node->get_logger(), *_node->get_clock(), 5000, "Inference failed: %s", e.what());
+        RCLCPP_ERROR_THROTTLE(get_logger(), *get_clock(), 5000, "Inference failed: %s", e.what());
         return;
     }
 
     ProcessOutput(outputs, info, image, msg->header);
 }
+
+}  // namespace ros_onnx_segmentation

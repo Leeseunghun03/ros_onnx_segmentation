@@ -44,3 +44,4 @@ jobs:
           out=$(ros2 run ros_onnx_segmentation ros_onnx_segmentation 2>&1 || true)
           echo "$out"
           echo "$out" | grep -q "onnx_model_path is not set"
+          ros2 component types | grep -q "ros_onnx_segmentation::YoloProcessor"

@@ -5,16 +5,17 @@
 int main(int argc, char **argv)
 {
     rclcpp::init(argc, argv);
-    auto node = rclcpp::Node::make_shared("ros_onnx_segmentation");
 
-    yolo::YoloProcessor processor;
-    if (!processor.init(node))
+    int ret = 0;
+    try
     {
-        rclcpp::shutdown();
-        return 1;
+        rclcpp::spin(std::make_shared<ros_onnx_segmentation::YoloProcessor>());
+    }
+    catch (const std::exception &)
+    {
+        ret = 1;
     }
 
-    rclcpp::spin(node);
     rclcpp::shutdown();
-    return 0;
+    return ret;
 }

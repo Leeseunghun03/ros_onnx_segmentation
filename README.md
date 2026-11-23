@@ -6,8 +6,9 @@ Instance segmentation for ROS 2 in a single C++ node. Runs YOLOv8 / YOLO11 segme
 
 - MIT licensed. At runtime the node uses only ONNX Runtime (MIT) and OpenCV, so no copyleft code ends up on the robot.
 - Masks are published for other nodes to use: `vision_msgs/Detection2DArray` plus a per-pixel instance ID image, aligned with the input image.
+- Runs as a standalone node or as a component. Loaded next to the camera driver with intra-process communication, images are handed over without a copy.
 - One package for x64 and aarch64. ONNX Runtime is fetched at build time; CUDA and TensorRT are a CMake option away, and an existing install (e.g. on Jetson) can be used instead.
-- About 600 lines of C++. Easy to read, easy to change for your own model.
+- About 700 lines of C++. Easy to read, easy to change for your own model.
 
 ![demo](docs/demo.gif)
 
@@ -74,6 +75,16 @@ ros2 launch ros_onnx_segmentation segmentation_launch.py model_path:=/path/to/yo
 ```
 
 Defaults are in [config/params.yaml](ros_onnx_segmentation/config/params.yaml). Pass your own with `params_file:=...`.
+
+### As a component
+
+The plugin is `ros_onnx_segmentation::YoloProcessor`. To load it into the container that runs your camera driver:
+
+```bash
+ros2 launch ros_onnx_segmentation composable_launch.py model_path:=/path/to/model.onnx container:=/camera_container
+```
+
+Without `container:=` a new container is started. The launch file enables `use_intra_process_comms`; the camera driver must enable it too for zero-copy transport.
 
 ### Topics
 
