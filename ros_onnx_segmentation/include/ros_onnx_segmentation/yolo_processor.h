@@ -30,10 +30,20 @@ namespace yolo
     private:
         std::vector<std::string> read_class_names() const;
         cv::Mat get_mask(const cv::Mat &coeffs, const cv::Mat &protos, const ImageInfo &info, const cv::Rect &bound) const;
-        cv::Mat draw_result(const cv::Mat &image, std::vector<Obj> objs) const;
+        std::vector<size_t> assign_colors(const std::vector<Obj> &objs);
+        cv::Mat draw_result(const cv::Mat &image, const std::vector<Obj> &objs);
 
         std::vector<std::string> _classNames;
         std::vector<cv::Scalar> _colors;
+
+        struct ColoredBox
+        {
+            cv::Rect bound;
+            int id;
+            size_t color;
+        };
+        std::vector<ColoredBox> _prevBoxes;
+        size_t _nextColor = 0;
 
         float _confThresh = 0.35f;
         float _iouThresh = 0.6f;

@@ -227,14 +227,68 @@ namespace yolo
         return warped > _maskLogit;
     }
 
-    cv::Mat YoloProcessor::draw_result(const cv::Mat &image, std::vector<Obj> objs) const
+    std::vector<size_t> YoloProcessor::assign_colors(const std::vector<Obj> &objs)
     {
-        // Assign colors left to right so they change less between frames.
-        std::sort(objs.begin(), objs.end(), [](const Obj &a, const Obj &b) { return a.bound.x < b.bound.x; });
+        // Reuse the color of the best overlapping box of the same class in the previous frame,
+        // so the overlay does not flicker. Only affects the debug image.
+        std::vector<size_t> colors(objs.size(), _colors.size());
+        std::vector<bool> taken(_prevBoxes.size(), false);
+        std::vector<bool> used(_colors.size(), false);
+
+        for (size_t i = 0; i < objs.size(); ++i)
+        {
+            double best_iou = 0.3;
+            size_t match = _prevBoxes.size();
+            for (size_t j = 0; j < _prevBoxes.size(); ++j)
+            {
+                if (taken[j] || _prevBoxes[j].id != objs[i].id)
+                    continue;
+                double inter = (objs[i].bound & _prevBoxes[j].bound).area();
+                double iou = inter / (objs[i].bound.area() + _prevBoxes[j].bound.area() - inter);
+                if (iou > best_iou)
+                {
+                    best_iou = iou;
+                    match = j;
+                }
+            }
+            if (match < _prevBoxes.size())
+            {
+                taken[match] = true;
+                colors[i] = _prevBoxes[match].color;
+                used[colors[i]] = true;
+            }
+        }
+
+        for (size_t i = 0; i < objs.size(); ++i)
+        {
+            if (colors[i] < _colors.size())
+                continue;
+            for (size_t k = 0; k < _colors.size(); ++k)
+            {
+                size_t c = (_nextColor + k) % _colors.size();
+                if (!used[c] || k + 1 == _colors.size())
+                {
+                    colors[i] = c;
+                    break;
+                }
+            }
+            used[colors[i]] = true;
+            _nextColor = (colors[i] + 1) % _colors.size();
+        }
+
+        _prevBoxes.clear();
+        for (size_t i = 0; i < objs.size(); ++i)
+            _prevBoxes.push_back({objs[i].bound, objs[i].id, colors[i]});
+        return colors;
+    }
+
+    cv::Mat YoloProcessor::draw_result(const cv::Mat &image, const std::vector<Obj> &objs)
+    {
+        std::vector<size_t> colors = assign_colors(objs);
 
         cv::Mat overlay = image.clone();
         for (size_t i = 0; i < objs.size(); ++i)
-            overlay(objs[i].bound).setTo(_colors[i % _colors.size()], objs[i].mask);
+            overlay(objs[i].bound).setTo(_colors[colors[i]], objs[i].mask);
 
         cv::Mat out;
         cv::addWeighted(image, 0.45, overlay, 0.55, 0, out);
@@ -242,7 +296,7 @@ namespace yolo
         for (size_t i = 0; i < objs.size(); ++i)
         {
             const auto &obj = objs[i];
-            const auto &color = _colors[i % _colors.size()];
+            const auto &color = _colors[colors[i]];
             cv::rectangle(out, obj.bound, color, 1);
 
             std::string label = cv::format("%s %.2f", _classNames[obj.id].c_str(), obj.accu);
