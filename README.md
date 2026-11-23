@@ -5,6 +5,21 @@ No Python or PyTorch is needed at runtime. ONNX Runtime is downloaded during the
 
 Tested on ROS 2 Humble (Ubuntu 22.04, OpenCV 4.5).
 
+![demo](docs/demo.gif)
+
+yolo11s-seg, 960x540 input, CPU only. Video: [Shibuya Crossing, Tokyo](https://commons.wikimedia.org/wiki/File:Shibuya_Crossing,_Tokyo,_Japan_(video).webm) by Basile Morin, [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/). The GIF is released under the same license.
+
+## Performance
+
+Time from publishing a 960x540 image to receiving the overlay image, averaged over 120 frames.
+Ryzen 9 5950X, `num_threads: 4`, no GPU.
+
+| Model | Latency |
+|---|---|
+| yolov8n-seg | 74 ms |
+| yolo11n-seg | 84 ms |
+| yolo11s-seg | 172 ms |
+
 ## Packages
 
 | Package | Description |

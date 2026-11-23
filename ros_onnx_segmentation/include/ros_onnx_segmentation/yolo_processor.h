@@ -30,7 +30,7 @@ namespace yolo
     private:
         std::vector<std::string> read_class_names() const;
         cv::Mat get_mask(const cv::Mat &coeffs, const cv::Mat &protos, const ImageInfo &info, const cv::Rect &bound) const;
-        cv::Mat draw_result(const cv::Mat &image, const std::vector<Obj> &objs) const;
+        cv::Mat draw_result(const cv::Mat &image, std::vector<Obj> objs) const;
 
         std::vector<std::string> _classNames;
         std::vector<cv::Scalar> _colors;

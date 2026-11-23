@@ -70,9 +70,14 @@ namespace yolo
             }
         }
 
-        cv::RNG rng(12345);
-        for (int i = 0; i < num_classes; ++i)
-            _colors.emplace_back(rng.uniform(64, 256), rng.uniform(64, 256), rng.uniform(64, 256));
+        // Golden-ratio hue steps keep neighboring instances distinguishable.
+        cv::Mat hsv(1, 32, CV_8UC3);
+        for (int i = 0; i < hsv.cols; ++i)
+            hsv.at<cv::Vec3b>(0, i) = cv::Vec3b(static_cast<uchar>(std::fmod(i * 0.618034, 1.0) * 180), 220, 255);
+        cv::Mat bgr;
+        cv::cvtColor(hsv, bgr, cv::COLOR_HSV2BGR);
+        for (int i = 0; i < bgr.cols; ++i)
+            _colors.emplace_back(bgr.at<cv::Vec3b>(0, i));
 
         _objectPub = _node->create_publisher<seg_msgs::msg::ObjectInfoArray>("object_info_array", 10);
         if (_debug)
@@ -211,21 +216,30 @@ namespace yolo
         return warped > _maskLogit;
     }
 
-    cv::Mat YoloProcessor::draw_result(const cv::Mat &image, const std::vector<Obj> &objs) const
+    cv::Mat YoloProcessor::draw_result(const cv::Mat &image, std::vector<Obj> objs) const
     {
+        // Assign colors left to right so they change less between frames.
+        std::sort(objs.begin(), objs.end(), [](const Obj &a, const Obj &b) { return a.bound.x < b.bound.x; });
+
         cv::Mat overlay = image.clone();
-        for (const auto &obj : objs)
-            overlay(obj.bound).setTo(_colors[obj.id], obj.mask);
+        for (size_t i = 0; i < objs.size(); ++i)
+            overlay(objs[i].bound).setTo(_colors[i % _colors.size()], objs[i].mask);
 
         cv::Mat out;
-        cv::addWeighted(image, 0.6, overlay, 0.4, 0, out);
+        cv::addWeighted(image, 0.45, overlay, 0.55, 0, out);
 
-        for (const auto &obj : objs)
+        for (size_t i = 0; i < objs.size(); ++i)
         {
-            cv::rectangle(out, obj.bound, _colors[obj.id], 2);
+            const auto &obj = objs[i];
+            const auto &color = _colors[i % _colors.size()];
+            cv::rectangle(out, obj.bound, color, 1);
+
             std::string label = cv::format("%s %.2f", _classNames[obj.id].c_str(), obj.accu);
-            cv::Point org(obj.bound.x, std::max(obj.bound.y - 4, 12));
-            cv::putText(out, label, org, cv::FONT_HERSHEY_SIMPLEX, 0.5, _colors[obj.id], 1);
+            int baseline = 0;
+            cv::Size size = cv::getTextSize(label, cv::FONT_HERSHEY_SIMPLEX, 0.4, 1, &baseline);
+            cv::Point org(obj.bound.x, std::max(obj.bound.y, size.height + 4));
+            cv::rectangle(out, cv::Rect(org.x, org.y - size.height - 4, size.width + 4, size.height + 4), color, cv::FILLED);
+            cv::putText(out, label, org + cv::Point(2, -3), cv::FONT_HERSHEY_SIMPLEX, 0.4, cv::Scalar(0, 0, 0), 1, cv::LINE_AA);
         }
         return out;
     }
