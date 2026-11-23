@@ -18,12 +18,14 @@ Tested on ROS 2 Humble (x64, CPU / CUDA / TensorRT). CI also builds Humble aarch
 
 ## Performance
 
-Time from publishing a 960x540 image to receiving `detections`, including pre- and post-processing and mask decoding. Mean over 100 frames.
+End-to-end latency on one machine: a separate process publishes a 960x540 image, and the clock stops when `detections` arrives. This includes ROS transport, pre- and post-processing, not only inference. Mean over 100 frames of one scene with about 8 detections.
 
-| Model | CPU (Ryzen 9 5950X, 4 threads) | CUDA (RTX 3090) | TensorRT FP16 (RTX 3090) |
+| Model | CPU (Ryzen 9 5950X, `num_threads: 4`) | CUDA (RTX 3090) | TensorRT FP16 (RTX 3090) |
 |---|---|---|---|
-| yolo11n-seg | 62 ms | 15 ms | 8.3 ms |
-| yolo11s-seg | 134 ms | 18 ms | 12.4 ms |
+| yolo11n-seg | 62 ms | 15 ms | 8 ms |
+| yolo11s-seg | 134 ms | 18 ms | 12 ms |
+
+Read it as "what a subscriber sees", not as a model benchmark. On GPU the n and s models end up close, which suggests most of the time there is spent outside the network. Post-processing grows with the number of detections. TensorRT FP16 output was not compared against FP32 for accuracy.
 
 With TensorRT the first start builds an engine, which takes a few minutes depending on the model. It is cached in `trt_cache_dir` and reused afterwards.
 
