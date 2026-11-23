@@ -1,0 +1,46 @@
+name: build
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  build:
+    name: ${{ matrix.distro }} ${{ matrix.arch }}${{ matrix.gpu == 'ON' && ' gpu' || '' }}
+    runs-on: ${{ matrix.runner }}
+    container: ros:${{ matrix.distro }}-ros-base
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { distro: humble, arch: x64, runner: ubuntu-24.04, gpu: 'OFF' }
+          - { distro: humble, arch: x64, runner: ubuntu-24.04, gpu: 'ON' }
+          - { distro: humble, arch: arm64, runner: ubuntu-24.04-arm, gpu: 'OFF' }
+          - { distro: jazzy, arch: x64, runner: ubuntu-24.04, gpu: 'OFF' }
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: src/ros_onnx_segmentation
+
+      - name: Install dependencies
+        run: |
+          apt-get update
+          rosdep update --rosdistro ${{ matrix.distro }}
+          rosdep install --from-paths src --ignore-src -y
+
+      - name: Build
+        shell: bash
+        run: |
+          source /opt/ros/${{ matrix.distro }}/setup.bash
+          colcon build --event-handlers console_cohesion+ \
+            --cmake-args -DONNXRUNTIME_GPU=${{ matrix.gpu }} -DCMAKE_CXX_FLAGS="-Wall -Wextra -Werror"
+
+      - name: Check the node starts
+        shell: bash
+        run: |
+          source install/setup.bash
+          # Fails fast on a missing shared library; exits 1 because no model is given.
+          out=$(ros2 run ros_onnx_segmentation ros_onnx_segmentation 2>&1 || true)
+          echo "$out"
+          echo "$out" | grep -q "onnx_model_path is not set"

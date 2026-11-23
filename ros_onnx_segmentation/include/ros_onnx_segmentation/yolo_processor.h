@@ -4,7 +4,7 @@
 #include <vector>
 
 #include <ros_onnx_segmentation/onnx_processor.h>
-#include <seg_msgs/msg/object_info_array.hpp>
+#include <vision_msgs/msg/detection2_d_array.hpp>
 
 namespace yolo
 {
@@ -45,7 +45,8 @@ namespace yolo
         int _protoWidth = 160;
         int _protoHeight = 160;
 
-        rclcpp::Publisher<seg_msgs::msg::ObjectInfoArray>::SharedPtr _objectPub;
+        rclcpp::Publisher<vision_msgs::msg::Detection2DArray>::SharedPtr _detectionPub;
+        rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr _maskPub;
         rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr _debugPub;
     };
 }

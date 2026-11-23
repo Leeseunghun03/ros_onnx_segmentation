@@ -4,7 +4,11 @@
 #include <string>
 #include <vector>
 
+#if __has_include(<cv_bridge/cv_bridge.hpp>)
+#include <cv_bridge/cv_bridge.hpp>
+#else
 #include <cv_bridge/cv_bridge.h>
+#endif
 #include <onnxruntime_cxx_api.h>
 #include <opencv2/opencv.hpp>
 #include <rclcpp/rclcpp.hpp>
@@ -44,6 +48,8 @@ protected:
 private:
     void ProcessImage(const sensor_msgs::msg::Image::ConstSharedPtr msg);
     cv::Mat Preprocess(const cv::Mat &image, ImageInfo &info) const;
+    void AppendExecutionProvider(Ort::SessionOptions &options, const std::string &provider,
+                                 int device_id, std::string trt_cache_dir);
 
     bool _letterbox = true;
     std::vector<const char *> _inputNamePtrs;

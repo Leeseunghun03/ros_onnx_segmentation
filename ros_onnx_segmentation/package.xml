@@ -15,7 +15,7 @@
   <depend>cv_bridge</depend>
   <depend>libopencv-dev</depend>
   <depend>onnxruntime_vendor</depend>
-  <depend>seg_msgs</depend>
+  <depend>vision_msgs</depend>
 
   <exec_depend>launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>

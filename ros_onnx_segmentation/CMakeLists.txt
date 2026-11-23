@@ -16,7 +16,7 @@ find_package(sensor_msgs REQUIRED)
 find_package(cv_bridge REQUIRED)
 find_package(onnxruntime_vendor REQUIRED)
 find_package(OpenCV REQUIRED)
-find_package(seg_msgs REQUIRED)
+find_package(vision_msgs REQUIRED)
 
 add_executable(${PROJECT_NAME}
   src/main.cpp
@@ -31,7 +31,7 @@ ament_target_dependencies(${PROJECT_NAME}
   sensor_msgs
   cv_bridge
   onnxruntime_vendor
-  seg_msgs)
+  vision_msgs)
 
 target_link_libraries(${PROJECT_NAME} ${OpenCV_LIBS})
 

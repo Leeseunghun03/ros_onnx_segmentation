@@ -2,7 +2,6 @@
 
 #include <algorithm>
 #include <cmath>
-#include <map>
 #include <regex>
 
 namespace yolo
@@ -79,7 +78,8 @@ namespace yolo
         for (int i = 0; i < bgr.cols; ++i)
             _colors.emplace_back(bgr.at<cv::Vec3b>(0, i));
 
-        _objectPub = _node->create_publisher<seg_msgs::msg::ObjectInfoArray>("object_info_array", 10);
+        _detectionPub = _node->create_publisher<vision_msgs::msg::Detection2DArray>("detections", 10);
+        _maskPub = _node->create_publisher<sensor_msgs::msg::Image>("instance_mask", 10);
         if (_debug)
             _debugPub = _node->create_publisher<sensor_msgs::msg::Image>(debug_topic, 10);
 
@@ -157,9 +157,8 @@ namespace yolo
         std::vector<int> keep;
         cv::dnn::NMSBoxes(nms_boxes, scores, _confThresh, _iouThresh, keep);
 
-        seg_msgs::msg::ObjectInfoArray array_msg;
-        array_msg.header = header;
-        std::map<int, size_t> groups;
+        vision_msgs::msg::Detection2DArray det_msg;
+        det_msg.header = header;
         std::vector<Obj> objs;
 
         for (int idx : keep)
@@ -172,25 +171,37 @@ namespace yolo
             cv::Mat coeffs(1, _maskChannels, CV_32F, det.ptr<float>(rows[idx]) + 4 + num_classes);
             obj.mask = get_mask(coeffs, protos, info, obj.bound);
 
-            auto it = groups.find(obj.id);
-            if (it == groups.end())
-            {
-                seg_msgs::msg::ObjectInfo info_msg;
-                info_msg.class_name = _classNames[obj.id];
-                array_msg.objects.push_back(info_msg);
-                it = groups.emplace(obj.id, array_msg.objects.size() - 1).first;
-            }
-            auto &group = array_msg.objects[it->second];
-            group.object_count += 1;
-            group.x_position.push_back(obj.bound.x);
-            group.y_position.push_back(obj.bound.y);
-            group.width.push_back(obj.bound.width);
-            group.height.push_back(obj.bound.height);
+            vision_msgs::msg::Detection2D d;
+            d.header = header;
+            // Matches the pixel value of this instance in instance_mask.
+            d.id = std::to_string(objs.size() + 1);
+            d.bbox.center.position.x = obj.bound.x + obj.bound.width / 2.0;
+            d.bbox.center.position.y = obj.bound.y + obj.bound.height / 2.0;
+            d.bbox.size_x = obj.bound.width;
+            d.bbox.size_y = obj.bound.height;
+
+            vision_msgs::msg::ObjectHypothesisWithPose hyp;
+            hyp.hypothesis.class_id = _classNames[obj.id];
+            hyp.hypothesis.score = obj.accu;
+            d.results.push_back(hyp);
+            det_msg.detections.push_back(std::move(d));
 
             objs.push_back(std::move(obj));
         }
 
-        _objectPub->publish(array_msg);
+        _detectionPub->publish(det_msg);
+
+        if (_maskPub->get_subscription_count() > 0)
+        {
+            // 0 is background. Higher-score instances are written first and keep overlapping pixels.
+            cv::Mat ids = cv::Mat::zeros(info.raw_size, CV_16UC1);
+            for (size_t i = 0; i < objs.size(); ++i)
+            {
+                cv::Mat roi = ids(objs[i].bound);
+                roi.setTo(cv::Scalar(static_cast<double>(i + 1)), objs[i].mask & (roi == 0));
+            }
+            _maskPub->publish(*cv_bridge::CvImage(header, "mono16", ids).toImageMsg());
+        }
 
         if (_debugPub && _debugPub->get_subscription_count() > 0)
         {

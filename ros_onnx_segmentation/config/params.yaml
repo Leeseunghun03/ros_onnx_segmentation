@@ -3,6 +3,8 @@ ros_onnx_segmentation:
     image_topic: /camera/image_raw
     image_debug_topic: image_debug_raw
     image_processing: letterbox  # letterbox | resize
+    execution_provider: cpu  # cpu | cuda | tensorrt
+    device_id: 0
     num_threads: 1
     conf_thresh: 0.35
     mask_thresh: 0.3

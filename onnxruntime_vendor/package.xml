@@ -4,11 +4,12 @@
   schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="2">
   <name>onnxruntime_vendor</name>
-  <version>0.0.1</version>
+  <version>1.26.0</version>
   <description>
-    Wrapper for onnxruntime.
+    Downloads prebuilt ONNX Runtime (CPU, CUDA/TensorRT) for ros_onnx_segmentation.
   </description>
-  <maintainer email="seanyen@microsoft.com">Sean Yen</maintainer>
+  <maintainer email="fire3577@naver.com">sh</maintainer>
+  <author>Sean Yen</author>
   <license>MIT</license>
 
   <url type="website">https://microsoft.github.io/onnxruntime/</url>

@@ -1,6 +1,8 @@
 #include <ros_onnx_segmentation/onnx_processor.h>
 
 #include <array>
+#include <cstdlib>
+#include <filesystem>
 
 #ifdef _WIN32
 #include <codecvt>
@@ -19,6 +21,9 @@ bool OnnxProcessor::init(rclcpp::Node::SharedPtr &node)
     auto num_threads = _node->declare_parameter<int>("num_threads", 1);
     auto tensor_width = _node->declare_parameter<int>("tensor_width", 640);
     auto tensor_height = _node->declare_parameter<int>("tensor_height", 640);
+    auto provider = _node->declare_parameter<std::string>("execution_provider", "cpu");
+    auto device_id = _node->declare_parameter<int>("device_id", 0);
+    auto trt_cache_dir = _node->declare_parameter<std::string>("trt_cache_dir", "");
     _debug = _node->declare_parameter<bool>("debug", false);
 
     if (model_path.empty())
@@ -36,11 +41,13 @@ bool OnnxProcessor::init(rclcpp::Node::SharedPtr &node)
         RCLCPP_WARN(_node->get_logger(), "Unknown image_processing '%s', using letterbox", processing.c_str());
     }
 
+    _env = std::make_unique<Ort::Env>(ORT_LOGGING_LEVEL_WARNING, "ros_onnx_segmentation");
+
     Ort::SessionOptions options;
     options.SetIntraOpNumThreads(num_threads);
     options.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_EXTENDED);
+    AppendExecutionProvider(options, provider, device_id, trt_cache_dir);
 
-    _env = std::make_unique<Ort::Env>(ORT_LOGGING_LEVEL_WARNING, "ros_onnx_segmentation");
     try
     {
 #ifdef _WIN32
@@ -78,6 +85,53 @@ bool OnnxProcessor::init(rclcpp::Node::SharedPtr &node)
         image_topic, rclcpp::SensorDataQoS(), std::bind(&OnnxProcessor::ProcessImage, this, _1));
 
     return true;
+}
+
+void OnnxProcessor::AppendExecutionProvider(Ort::SessionOptions &options, const std::string &provider,
+                                            int device_id, std::string trt_cache_dir)
+{
+    if (provider == "cpu")
+        return;
+    if (provider != "cuda" && provider != "tensorrt")
+    {
+        RCLCPP_WARN(_node->get_logger(), "Unknown execution_provider '%s', using cpu", provider.c_str());
+        return;
+    }
+
+    try
+    {
+        if (provider == "tensorrt")
+        {
+            if (trt_cache_dir.empty())
+            {
+                const char *home = std::getenv("HOME");
+                trt_cache_dir = std::string(home ? home : "/tmp") + "/.ros/trt_cache";
+            }
+            std::error_code ec;
+            std::filesystem::create_directories(trt_cache_dir, ec);
+            std::string device = std::to_string(device_id);
+            std::vector<const char *> keys = {"device_id", "trt_fp16_enable", "trt_engine_cache_enable", "trt_engine_cache_path"};
+            std::vector<const char *> values = {device.c_str(), "1", "1", trt_cache_dir.c_str()};
+
+            const auto &api = Ort::GetApi();
+            OrtTensorRTProviderOptionsV2 *trt = nullptr;
+            Ort::ThrowOnError(api.CreateTensorRTProviderOptions(&trt));
+            std::unique_ptr<OrtTensorRTProviderOptionsV2, decltype(api.ReleaseTensorRTProviderOptions)> guard(
+                trt, api.ReleaseTensorRTProviderOptions);
+            Ort::ThrowOnError(api.UpdateTensorRTProviderOptions(trt, keys.data(), values.data(), keys.size()));
+            options.AppendExecutionProvider_TensorRT_V2(*trt);
+        }
+
+        // Also registered with TensorRT to run nodes TensorRT does not support.
+        OrtCUDAProviderOptions cuda;
+        cuda.device_id = device_id;
+        options.AppendExecutionProvider_CUDA(cuda);
+        RCLCPP_INFO(_node->get_logger(), "Using %s execution provider on device %d", provider.c_str(), device_id);
+    }
+    catch (const Ort::Exception &e)
+    {
+        RCLCPP_WARN(_node->get_logger(), "%s execution provider is not available, using cpu: %s", provider.c_str(), e.what());
+    }
 }
 
 cv::Mat OnnxProcessor::Preprocess(const cv::Mat &image, ImageInfo &info) const
