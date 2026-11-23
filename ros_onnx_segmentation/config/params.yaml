@@ -1,0 +1,12 @@
+ros_onnx_segmentation:
+  ros__parameters:
+    image_topic: /camera/image_raw
+    image_debug_topic: image_debug_raw
+    image_processing: letterbox  # letterbox | resize
+    num_threads: 1
+    conf_thresh: 0.35
+    mask_thresh: 0.3
+    iou_thresh: 0.6
+    debug: false
+    # Read from the model metadata if omitted
+    # class_names: [person, bicycle, car]

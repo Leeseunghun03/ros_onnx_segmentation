@@ -75,6 +75,10 @@ install(
     DESTINATION share/${PROJECT_NAME}
 )
 
+if(NOT MSVC)
+  ament_environment_hooks("${ament_cmake_package_templates_ENVIRONMENT_HOOK_LIBRARY_PATH}")
+endif()
+
 ament_package(
   CONFIG_EXTRAS "src/onnxruntime_vendor-extras.cmake"
 )

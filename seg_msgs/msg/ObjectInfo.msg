@@ -1,4 +1,3 @@
-# ObjectInfo.msg
 string class_name
 int32 object_count
 float32[] x_position

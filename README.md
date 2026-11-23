@@ -1,44 +1,82 @@
-# ROS2 Real-Time Image Segmentation with ONNX Runtime
+# ros_onnx_segmentation
 
-## Overview
-This ROS 2 package performs real-time image segmentation using the [ONNX Runtime](https://onnxruntime.ai/). Designed for robotics applications, it processes camera input and generates segmented output in real-time.
+ROS 2 node for YOLOv8 / YOLO11 instance segmentation, written in C++ on top of ONNX Runtime.
+No Python or PyTorch is needed at runtime. ONNX Runtime is downloaded during the build by the `onnxruntime_vendor` package.
 
----
+Tested on ROS 2 Humble (Ubuntu 22.04, OpenCV 4.5).
 
-## Features
-- Real-time image segmentation using ONNX Runtime.
-- Compatible with ROS 2 (tested with Humble).
-- Supports Yolo ONNX segmentation model.
-- Configurable parameters for input, output topics, and model path.
+## Packages
 
----
+| Package | Description |
+|---|---|
+| `ros_onnx_segmentation` | Segmentation node |
+| `seg_msgs` | `ObjectInfo`, `ObjectInfoArray` messages |
+| `onnxruntime_vendor` | Fetches ONNX Runtime 1.17.0 (CPU) |
 
-## Requirements
-- ROS 2 Humble
-- ONNX Runtime (Auto Installed)
-- OpenCV 4.5 or later
+## Build
 
-## Usage
-
-1. Clone the Repository into ROS 2 Workspace Navigate to your ROS 2 workspace's src directory and clone the repository:
-
-```
+```bash
+cd ~/ros2_ws/src
 git clone https://github.com/Leeseunghun03/ros_onnx_segmentation.git
-```
-   Build the workspace:
-```
-colcon build --symlink-install
-```
-
-2. Customize Parameters Adjust parameters such as class, input_topic, output_topic, and other settings in the provided configuration file or via command-line arguments.
-3. Run the Camera Package Start your camera package to publish raw image data to a topic
-   (e.g., /camera/image_raw).
-4. Launch the Segmentation Package Run the segmentation package using the launch file:
-```
-ros2 launch ros_onnx_segmentation segmentation_launch.py
+cd ~/ros2_ws
+rosdep install --from-paths src --ignore-src -y
+colcon build
+source install/setup.bash
 ```
 
-## Reference
-- https://github.com/winxos/yolov8_segment_onnx_in_cpp.git
+## Model
 
-- https://github.com/ms-iot/ros_msft_onnx.git
+Models are not included in this repository. Export any Ultralytics segmentation model to ONNX:
+
+```bash
+pip install ultralytics
+yolo export model=yolov8n-seg.pt format=onnx imgsz=640
+```
+
+Either copy the file to `ros_onnx_segmentation/models/yolov8n-seg.onnx` before building, or pass the path at launch time.
+Class names are read from the model metadata, so `class_names` only needs to be set for models exported by other tools.
+
+Ultralytics models are licensed under AGPL-3.0. Check their terms before redistributing a trained model.
+
+## Run
+
+```bash
+ros2 launch ros_onnx_segmentation segmentation_launch.py model_path:=/path/to/model.onnx
+```
+
+Use a custom parameter file with `params_file:=/path/to/params.yaml`. See [config/params.yaml](ros_onnx_segmentation/config/params.yaml) for defaults.
+
+### Topics
+
+| Topic | Type | Description |
+|---|---|---|
+| `image_topic` (sub) | `sensor_msgs/Image` | Input image, any encoding cv_bridge can convert to BGR8 |
+| `object_info_array` (pub) | `seg_msgs/ObjectInfoArray` | Bounding boxes grouped by class, in input image pixels |
+| `image_debug_topic` (pub) | `sensor_msgs/Image` | Mask overlay, only when `debug` is true |
+
+Output messages keep the header of the input image.
+
+### Parameters
+
+| Name | Default | Description |
+|---|---|---|
+| `onnx_model_path` | | Path to the `.onnx` file |
+| `image_topic` | `camera/image_raw` | Input topic |
+| `image_debug_topic` | `image_debug_raw` | Overlay output topic |
+| `image_processing` | `letterbox` | `letterbox` or `resize` |
+| `tensor_width`, `tensor_height` | `640` | Used only if the model has a dynamic input shape |
+| `num_threads` | `1` | ONNX Runtime intra-op threads |
+| `conf_thresh` | `0.35` | Minimum class score |
+| `iou_thresh` | `0.6` | NMS, applied per class |
+| `mask_thresh` | `0.3` | Mask probability cutoff |
+| `class_names` | from model | Overrides the names in the model |
+| `debug` | `false` | Publish the overlay image |
+
+## License
+
+MIT. `onnxruntime_vendor` and the node structure come from [ms-iot/ros_msft_onnx](https://github.com/ms-iot/ros_msft_onnx) (MIT, Microsoft).
+
+## References
+
+- https://github.com/ms-iot/ros_msft_onnx
+- https://github.com/winxos/yolov8_segment_onnx_in_cpp
